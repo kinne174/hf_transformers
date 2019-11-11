@@ -29,6 +29,13 @@ def doc_to_spans(list_of_texts, join_string=' ||| '):
         new_docs.extend([all_docs[(i + 1 if i > 0 else i):j] for i, j in zip([0] + split_inds[:-1], split_inds)])
     return new_docs
 
+
+def check_u(text):
+    for i in range(len(text)-1):
+        if text[i:i+2] == '\u':
+            return True
+    return False
+
 def filter_docs(original_docs):
     new_docs = []
     # keep tokens that are not stop words, punctuation, docs that contain less than some threshold on punctuation/ numbers
@@ -42,7 +49,7 @@ def filter_docs(original_docs):
             continue
         if sums[3] + sums[4] > 0:  # at least one of the tokens does not have a vector or is a url
             continue
-        new_docs.append(' '.join([token.text for token in doc if not (token.is_punct or token.pos_ == 'SYM')]))
+        new_docs.append(' '.join([token.text for token in doc if not (token.is_punct or token.pos_ == 'SYM' or check_u(token.text))]))
 
     return new_docs
 
@@ -60,7 +67,7 @@ def preprocess_context_ARC():
         for ind, line in enumerate(corpus):
             temp_text.append(line.strip())
 
-            if ind >= 2000:
+            if ind >= 100000:
                 break
 
         spacy_docs = doc_to_spans(temp_text)
@@ -97,10 +104,6 @@ def preprocess_context_ARC():
                     temp_sentence.append(word_index)
                     word_index += 1
                 sentence_indices.append(i)
-
-
-            # TODO go through words_d to see if there's a simple way to get rid of the things I don't want
-            # TODO put a try statement on writing the sentence and continue if there's an error
 
             sentences_d[i] = temp_sentence
 

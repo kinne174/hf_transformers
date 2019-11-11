@@ -1,0 +1,15 @@
+#!/bin/bash -l
+
+#PBS -q batch
+#PBS -l walltime=168:00:00,nodes=1:ppn=10,mem=64gb
+#PBS -m abe
+#PBS -M kinne174@umn.edu
+#PBS -N kinne174_hf_transformers
+#PBS -o private/PythonProjects/hf_transformers/Output/job_output.txt
+#PBS -e private/PythonProjects/hf_transformers/Output/job_error.txt
+
+module load python/conda/3.7
+source activate hf_transformers
+cd private/PythonProjects/hf_transformers
+python main.py
+source deactivate hf_transformers
