@@ -15,13 +15,11 @@ import logging
 if getpass.getuser() == 'Mitch':
     head = 'C:/Users/Mitch/PycharmProjects'
 else:
-    head = '/home/kinne174/private/PythonProjects/'
+    head = '/home/kinne174/private/PythonProjects'
 
-all_filenames = glob.glob(os.path.join(head, 'log/*'))
+all_filenames = glob.glob(os.path.join(head, 'hf_transformers/log/*'))
 
-logging.basicConfig(filename=os.path.join(head, 'log/logging-{}.log'.format(len(all_filenames))), level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
-
-
+logging.basicConfig(filename=os.path.join(head, 'hf_transformers/log/logging-{}.log'.format(len(all_filenames))), level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
 def BERT_embeddings(parameter_dict):
     # returns a numpy array with the embeddings as determined by BERT
@@ -32,9 +30,8 @@ def BERT_embeddings(parameter_dict):
     for p in ['dev', 'test', 'train']:
         TD = TextDownload(dataset_name='ARC', partition=p, difficulty='')
         all_context.extend(TD.load())
-        if getpass.getuser() == 'Mitch':
-            all_context = all_context[:50]
-            break
+        all_context = all_context[:50]
+        break
     logging.info('Finished gathering context.')
 
     # load a model if one has been saved
@@ -125,7 +122,7 @@ if __name__ == '__main__':
     # print(args)
     # globals().update(args.__dict__)
 
-    parameter_dict = {'sentence_embedder': 'BERT', 'pretrained_embedder': '', 'embedding_average_pooling': 'average',
+    parameter_dict = {'sentence_embedder': 'BERT', 'pretrained_embedder': '', 'embedding_average_pooling': 'pooling',
                       'which_model': 'all'}
 
     logging.info('parameters: {}'.format(parameter_dict))
