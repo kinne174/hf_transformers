@@ -30,6 +30,7 @@ def BERT_embeddings(parameter_dict):
     for p in ['dev', 'test', 'train']:
         TD = TextDownload(dataset_name='ARC', partition=p, difficulty='')
         all_context.extend(TD.load())
+        break
     logging.info('Finished gathering context.')
 
     # load a model if one has been saved
@@ -56,23 +57,39 @@ def BERT_embeddings(parameter_dict):
     input_ids = torch.tensor(input_ids)
 
     logging.info('Starting creating sentence embeddings.')
-    with torch.no_grad():
-        all_hidden_states = model(input_ids)
-        pooled_hidden_state = all_hidden_states[1]
-        last_hidden_states = all_hidden_states[0]
+    batch_size = 250
+    num_iterations = (input_ids.size()[0]//batch_size) + 1
+    for i in range(num_iterations):
+        with torch.no_grad():
+            if i == num_iterations - 1:
+                temp_ids = input_ids[batch_size*i:, :]
+                all_hidden_states = model(temp_ids)
+                pooled_hidden_state = all_hidden_states[1]
+                last_hidden_states = all_hidden_states[0]
+            else:
+                temp_ids = input_ids[batch_size*i:batch_size*(i+1), :]
+                all_hidden_states = model(temp_ids)
+                pooled_hidden_state = all_hidden_states[1]
+                last_hidden_states = all_hidden_states[0]
 
+            if parameter_dict['embedding_average_pooling'] == 'average':
+                temp_last_hidden_states = torch.mean(last_hidden_states, dim=1)
+            elif parameter_dict['embedding_average_pooling'] == 'pooling':
+                abs_array = torch.abs(last_hidden_states)
+                max_indices = torch.argmax(abs_array, dim=1)
+                temp_last_hidden_states = torch.zeros(max_indices.size())
+                for ii in range(temp_last_hidden_states.size()[0]):
+                    for jj in range(temp_last_hidden_states.size()[1]):
+                        temp_last_hidden_states[ii, jj] = last_hidden_states[ii, max_indices[ii, jj], jj]
 
-    torch_array = pooled_hidden_state
+            if i is 0:
+                out_pooled = pooled_hidden_state
+                out_last = temp_last_hidden_states
+            else:
+                out_pooled = torch.stack((out_pooled, pooled_hidden_state), dim=0)
+                out_last = torch.stack((out_last, temp_last_hidden_states), dim=0)
 
-    if parameter_dict['embedding_average_pooling'] == 'average':
-        torch_array = torch.mean(last_hidden_states, dim=1)
-    elif parameter_dict['embedding_average_pooling'] == 'pooling':
-        abs_array = torch.abs(last_hidden_states)
-        max_indices = torch.argmax(abs_array, dim=1)
-        torch_array = torch.zeros(max_indices.size())
-        for ii in range(torch_array.size()[0]):
-            for jj in range(torch_array.size()[1]):
-                torch_array[ii, jj] = last_hidden_states[ii, max_indices[ii, jj], jj]
+    torch_array = out_pooled
 
     logging.info('Finished creating sentence embeddings.')
 
