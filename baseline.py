@@ -5,12 +5,13 @@ from datetime import datetime
 import torch
 from transformers import *
 from text_utils import TextDownload
+from model_utils import AllModels
 import argparse
 import time
 
 import logging
 
-logging.basicConfig(filename='logging.log', level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+logging.basicConfig(filename='log/logging.log', level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
 
 if getpass.getuser() == 'Mitch':
@@ -87,6 +88,14 @@ def baseline(parameter_dict):
     if sentence_embedder == 'BERT':
         embeddings_df, labels = BERT_embeddings(parameter_dict)
 
+    which_model = parameter_dict['which_model']
+    AM = AllModels(embeddings_df, labels, which_model)
+
+    AM.fit()
+
+    logging.log(logging.info(''))
+    # TODO implement this for more models, figure out how to save information and datasets
+
 
 if __name__ == '__main__':
     # parser = argparse.ArgumentParser()
@@ -99,10 +108,8 @@ if __name__ == '__main__':
     # print(args)
     # globals().update(args.__dict__)
 
-    parameter_dict = {}
-    parameter_dict['sentence_embedder'] = 'BERT'
-    parameter_dict['pretrained_embedder'] = ''
-    parameter_dict['embedding_average_pooling'] = ''
+    parameter_dict = {'sentence_embedder': 'BERT', 'pretrained_embedder': '', 'embedding_average_pooling': '',
+                      'which_model': 'all'}
 
     baseline(parameter_dict)
 

@@ -10,6 +10,6 @@
 
 module load python/conda/3.7
 source activate hf_transformers
-cd private/PythonProjects/hf_transformers
+cd private/PythonProjects/hf_transformers || exit
 python main.py
 source deactivate hf_transformers
