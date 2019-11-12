@@ -30,8 +30,6 @@ def BERT_embeddings(parameter_dict):
     for p in ['dev', 'test', 'train']:
         TD = TextDownload(dataset_name='ARC', partition=p, difficulty='')
         all_context.extend(TD.load())
-        all_context = all_context[:50]
-        break
     logging.info('Finished gathering context.')
 
     # load a model if one has been saved
