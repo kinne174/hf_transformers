@@ -12,15 +12,14 @@ import glob
 
 import logging
 
-all_filenames = glob.glob('log/*')
-
-logging.basicConfig(filename='log/logging-{}.log'.format(len(all_filenames)), level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
-
-
 if getpass.getuser() == 'Mitch':
     head = 'C:/Users/Mitch/PycharmProjects'
 else:
     head = '/home/kinne174/private/PythonProjects/'
+
+all_filenames = glob.glob(os.path.join(head, 'log/*'))
+
+logging.basicConfig(filename=os.path.join(head, 'log/logging-{}.log'.format(len(all_filenames))), level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
 
 
@@ -126,7 +125,7 @@ if __name__ == '__main__':
     # print(args)
     # globals().update(args.__dict__)
 
-    parameter_dict = {'sentence_embedder': 'BERT', 'pretrained_embedder': '', 'embedding_average_pooling': '',
+    parameter_dict = {'sentence_embedder': 'BERT', 'pretrained_embedder': '', 'embedding_average_pooling': 'average',
                       'which_model': 'all'}
 
     logging.info('parameters: {}'.format(parameter_dict))
