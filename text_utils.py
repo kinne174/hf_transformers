@@ -59,13 +59,13 @@ class TextDownload:
         return current_context
 
     @staticmethod
-    def padding(all_context, tokenizer, pad_token, cls_token, sep_token, max_allowed_len):
+    def padding(all_context, tokenizer, cls_token, sep_token, max_allowed_len):
 
         all_combined = [cls_token + ' ' + c.question_text + ' ' + c.choice_text + ' ' + sep_token + ' ' + c.context
                         for c in all_context]
         all_tokenized_sentences = [tokenizer.encode(s) for s in all_combined]
 
-        pad_id, = tokenizer.encode(pad_token)
+        pad_id = 0
 
         all_len = [len(t) for t in all_tokenized_sentences]
 
@@ -77,7 +77,10 @@ class TextDownload:
             current_len = all_len[i]
             num_padding_tokens = max_len - current_len
 
-            new_id = t + [pad_id]*num_padding_tokens
+            if num_padding_tokens < 0:
+                new_id = t[0:max_len]
+            else:
+                new_id = t + [pad_id]*num_padding_tokens
             assert len(new_id) == max_len
 
             out_ids.append(new_id)

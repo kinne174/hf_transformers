@@ -30,19 +30,13 @@ class AllModels:
         if self.model_name == 'LogReg' or self.model_name == 'all':
             clf = LogisticRegressionCV(cv=5, n_jobs=self.n_jobs)
             clf.fit(self.X, self.y)
-            best_score = max(np.mean(clf.scores_, axis=1))
+            best_score = max(np.mean(clf.scores_[1], axis=0))
             self.best_scores['LogReg'] = best_score
             self.models.append(clf)
         else:
             raise Exception('not implemented yet')
 
-if __name__ == '__main__':
-    from sklearn.datasets import load_iris
-    from sklearn.linear_model import LogisticRegressionCV
-    X, y = load_iris(return_X_y=True)
-    X = X[:100, :]
-    y = y[:100]
-    clf = LogisticRegressionCV(cv=5, random_state=0)
-    clf.fit(X, y)
-    print(clf.scores_)
+    def results(self):
+        return self.best_scores
+
 

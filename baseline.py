@@ -8,10 +8,13 @@ from text_utils import TextDownload
 from model_utils import AllModels
 import argparse
 import time
+import glob
 
 import logging
 
-logging.basicConfig(filename='log/logging.log', level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+all_filenames = glob.glob('log/*')
+
+logging.basicConfig(filename='log/logging-{}.log'.format(len(all_filenames)), level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
 
 if getpass.getuser() == 'Mitch':
@@ -20,16 +23,20 @@ else:
     head = '/home/kinne174/private/PythonProjects/'
 
 
+
 def BERT_embeddings(parameter_dict):
     # returns a numpy array with the embeddings as determined by BERT
 
+    logging.info('Starting to gather context.')
     # get list of contexts
     all_context = []
     for p in ['dev', 'test', 'train']:
         TD = TextDownload(dataset_name='ARC', partition=p, difficulty='')
         all_context.extend(TD.load())
-        all_context = all_context[:50]
-        break
+        if getpass.getuser() == 'Mitch':
+            all_context = all_context[:50]
+            break
+    logging.info('Finished gathering context.')
 
     # load a model if one has been saved
     # or if in parameter dict a specific pre-trained embedder is wanted
@@ -44,8 +51,9 @@ def BERT_embeddings(parameter_dict):
     tokenizer = tokenizer_class.from_pretrained(pretrained_weights)
     model = model_class.from_pretrained(pretrained_weights)
 
-    concatenated_QA_context = TD.padding(all_context, tokenizer, tokenizer.pad_token, tokenizer.cls_token, tokenizer.sep_token, 512)
-    # concatenated_QA_context = TD.add_tokens(all_data, tokenizer.sep_token, tokenizer.cls_token)
+    logging.info('Adding padding.')
+    concatenated_QA_context = TD.padding(all_context, tokenizer, tokenizer.cls_token, tokenizer.sep_token, 512)
+    logging.info('Finished adding padding.')
 
     assert isinstance(concatenated_QA_context, list)
 
@@ -53,20 +61,26 @@ def BERT_embeddings(parameter_dict):
     assert all([len(input_ids[0]) == len(ii) for ii in input_ids[1:]]), [len(input_ids[0]) == len(ii) for ii in input_ids[1:]].index(False)
     input_ids = torch.tensor(input_ids)
 
-    start = time.time()
+    logging.info('Starting creating sentence embeddings.')
     with torch.no_grad():
         all_hidden_states = model(input_ids)
         pooled_hidden_state = all_hidden_states[1]
         last_hidden_states = all_hidden_states[0]
-    print(time.time() - start)
 
 
     torch_array = pooled_hidden_state
 
     if parameter_dict['embedding_average_pooling'] == 'average':
-        pass # TODO implement average and abs_max pooling
+        torch_array = torch.mean(last_hidden_states, dim=1)
     elif parameter_dict['embedding_average_pooling'] == 'pooling':
-        pass
+        abs_array = torch.abs(last_hidden_states)
+        max_indices = torch.argmax(abs_array, dim=1)
+        torch_array = torch.zeros(max_indices.size())
+        for ii in range(torch_array.size()[0]):
+            for jj in range(torch_array.size()[1]):
+                torch_array[ii, jj] = last_hidden_states[ii, max_indices[ii, jj], jj]
+
+    logging.info('Finished creating sentence embeddings.')
 
     out_array = torch_array.numpy()
 
@@ -91,10 +105,14 @@ def baseline(parameter_dict):
     which_model = parameter_dict['which_model']
     AM = AllModels(embeddings_df, labels, which_model)
 
+    logging.info('Starting to fit models.')
     AM.fit()
+    logging.info('Finished fitting models.')
 
-    logging.log(logging.info(''))
+    logging.info('Results: {}'.format(AM.results()))
+
     # TODO implement this for more models, figure out how to save information and datasets
+    # TODO see if pytorch/huggingface has a way to speed things up with a GPU or multiple nodes
 
 
 if __name__ == '__main__':
@@ -110,6 +128,8 @@ if __name__ == '__main__':
 
     parameter_dict = {'sentence_embedder': 'BERT', 'pretrained_embedder': '', 'embedding_average_pooling': '',
                       'which_model': 'all'}
+
+    logging.info('parameters: {}'.format(parameter_dict))
 
     baseline(parameter_dict)
 
