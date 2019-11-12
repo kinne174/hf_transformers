@@ -86,8 +86,8 @@ def BERT_embeddings(parameter_dict):
                 out_pooled = pooled_hidden_state
                 out_last = temp_last_hidden_states
             else:
-                out_pooled = torch.stack((out_pooled, pooled_hidden_state), dim=0)
-                out_last = torch.stack((out_last, temp_last_hidden_states), dim=0)
+                out_pooled = torch.cat((out_pooled, pooled_hidden_state), dim=0)
+                out_last = torch.cat((out_last, temp_last_hidden_states), dim=0)
 
     torch_array = out_pooled
 
