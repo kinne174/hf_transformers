@@ -133,14 +133,12 @@ if __name__ == '__main__':
                 for i in range(num_iterations):
                     with torch.no_grad():
                         if i == num_iterations - 1:
-                            temp_ids = input_ids[batch_size * i:, :]
-                            temp_ids.to(device)
+                            temp_ids = input_ids[batch_size * i:, :].to(device)
                             all_hidden_states = model(temp_ids)
                             pooled_hidden_state = all_hidden_states[1]
                             last_hidden_states = all_hidden_states[0]
                         else:
-                            temp_ids = input_ids[batch_size * i:batch_size * (i + 1), :]
-                            temp_ids.to(device)
+                            temp_ids = input_ids[batch_size * i:batch_size * (i + 1), :].to(device)
                             all_hidden_states = model(temp_ids)
                             pooled_hidden_state = all_hidden_states[1]
                             last_hidden_states = all_hidden_states[0]
