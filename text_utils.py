@@ -70,7 +70,7 @@ def padding(all_context, tokenizer, cls_token, sep_token, max_allowed_len):
 
 def get_device():
     if torch.cuda.is_available():
-        return torch.device('cuda')
+        return torch.device('cuda:0')
     else:
         return torch.device('cpu')
 
@@ -87,6 +87,7 @@ if __name__ == '__main__':
                         datefmt='%m/%d/%Y %I:%M:%S %p')
 
     logging.info('CUDA available: {}'.format(torch.cuda.is_available()))
+    assert torch.cuda.is_available()
 
     tokenizer_class_dict = {'BertTokenizer': BertTokenizer}
     model_class_dict = {'BertModel': BertModel, 'BertForMultipleChoice': BertForMultipleChoice}
