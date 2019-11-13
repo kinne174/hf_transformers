@@ -102,6 +102,10 @@ if __name__ == '__main__':
             model = model_class.from_pretrained(pretrained_weights)
             model.to(device)
             for p in partitions:
+
+                if os.path.exists(os.path.join(head, 'hf_transformers/data/{}_features_cls_{}.pt'.format(model_str, p))):
+                    continue
+
                 logging.info('Tokenizer: {}, model: {}, partition: {}'.format(tokenizer_str, model_str, p))
 
                 logging.info('Loading tokens')
