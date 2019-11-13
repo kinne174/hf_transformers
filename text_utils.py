@@ -77,6 +77,17 @@ def get_device():
 
 if __name__ == '__main__':
 
+    import logging
+    import glob
+
+    all_filenames = glob.glob(os.path.join(head, 'hf_transformers/log/*'))
+
+    logging.basicConfig(filename=os.path.join(head, 'hf_transformers/log/logging-{}.log'.format(len(all_filenames))),
+                        level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s',
+                        datefmt='%m/%d/%Y %I:%M:%S %p')
+
+    logging.info('CUDA available: {}'.format(torch.cuda.is_available()))
+
     tokenizer_class_dict = {'BertTokenizer': BertTokenizer}
     model_class_dict = {'BertModel': BertModel, 'BertForMultipleChoice': BertForMultipleChoice}
     pretrained_weights = 'bert-base-uncased'
@@ -91,18 +102,27 @@ if __name__ == '__main__':
             model = model_class.from_pretrained(pretrained_weights)
             model.to(device)
             for p in partitions:
+                logging.info('Tokenizer: {}, model: {}, partition: {}'.format(tokenizer_str, model_str, p))
+
+                logging.info('Loading tokens')
                 tokens = load(p)
+                logging.info('Finished loading tokens')
 
+                logging.info('Padding')
                 concatenated_QA_context = padding(tokens, tokenizer, tokenizer.cls_token, tokenizer.sep_token, 512)
+                logging.info('Finished padding')
 
+                logging.info('Encoding')
                 input_ids = [tokenizer.encode(s, add_special_tokens=False) for s in concatenated_QA_context]
+                logging.info('Finished encoding')
                 assert all([len(input_ids[0]) == len(ii) for ii in input_ids[1:]])
 
                 input_ids = torch.tensor(input_ids)
 
-                torch.save(input_ids, os.path.join(head, 'hf_trasnformers/data/{}_tokens_{}.pt'.format(tokenizer_str, p)))
+                torch.save(input_ids, os.path.join(head, 'hf_transformers/data/{}_tokens_{}.pt'.format(tokenizer_str, p)))
                 # torch.load('')
 
+                logging.info('Starting embeddings')
                 batch_size = 250
                 num_iterations = (input_ids.size()[0] // batch_size) + 1
                 for i in range(num_iterations):
@@ -137,10 +157,13 @@ if __name__ == '__main__':
                             out_pooled = torch.cat((out_pooled, pooled_hidden_state), dim=0)
                             out_last_pool = torch.cat((out_last_pool, temp_last_hidden_states_pool), dim=0)
                             out_last_mean = torch.cat((out_last_mean, temp_last_hidden_states_mean), dim=0)
+                    logging.info('Finished iteration {} of {}'.format(i, num_iterations))
 
-                torch.save(out_pooled, os.path.join(head, 'hf_trasnformers/data/{}_features_cls_{}.pt'.format(model_str, p)))
-                torch.save(out_last_mean, os.path.join(head, 'hf_trasnformers/data/{}_features_mean_{}.pt'.format(model_str, p)))
-                torch.save(out_last_pool, os.path.join(head, 'hf_trasnformers/data/{}_features_pool_{}.pt'.format(model_str, p)))
+                logging.info('Finished embeddings')
+
+                torch.save(out_pooled, os.path.join(head, 'hf_transformers/data/{}_features_cls_{}.pt'.format(model_str, p)))
+                torch.save(out_last_mean, os.path.join(head, 'hf_transformers/data/{}_features_mean_{}.pt'.format(model_str, p)))
+                torch.save(out_last_pool, os.path.join(head, 'hf_transformers/data/{}_features_pool_{}.pt'.format(model_str, p)))
 
 
 
