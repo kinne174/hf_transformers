@@ -1,89 +1,149 @@
 import json_lines
-import numpy as np
 from collections import namedtuple
 import os
 import getpass
-import time
+import torch
+from transformers import BertTokenizer, BertModel, BertForMultipleChoice
 
 if getpass.getuser() == 'Mitch':
     head = 'C:/Users/Mitch/PycharmProjects'
 else:
     head = '/home/kinne174/private/PythonProjects/'
 
+def load(partition):
+    filename = os.path.join(head, 'ARC/ARC-with-context/{}.jsonl'.format(partition))
 
-class TextDownload:
-    def __init__(self, dataset_name, partition, difficulty):
-        assert isinstance(dataset_name, str)
-        assert isinstance(partition, str)
-        assert isinstance(difficulty, str)
+    all_context = []
 
-        assert partition in ['dev', 'test', 'train']
-        # assert difficulty in ['Challenge', 'Easy']
+    with open(filename, 'r') as file:
+        jsonl_reader = json_lines.reader(file)
+        for line in jsonl_reader:
+            all_context.extend(collect(line))
 
-        self.dataset_name = dataset_name
-        self.partition = partition
-        self.difficulty = difficulty  # unused
+    return all_context
 
-    def load(self):
-        if self.dataset_name == 'ARC':
-            filename = os.path.join(head, 'ARC/ARC-with-context/{}.jsonl'.format(self.partition))
+def collect(info):
+    CONTEXT_DOCUMENT = namedtuple('CONTEXT_DOCUMENT', 'id question_text choice_text choice_label context correct')
+
+    current_context = []
+
+    id = info['id']
+    question_text = info['question']['stem']
+
+    for c in info['question']['choices']:
+        choice_label = c['label']
+        choice_text = c['text']
+        context = c['para']
+        correct = choice_label == info['answerKey']
+
+        current_context.append(CONTEXT_DOCUMENT(id=id, question_text=question_text, choice_text=choice_text,
+                                                choice_label=choice_label, context=context, correct=correct))
+    return current_context
+
+def padding(all_context, tokenizer, cls_token, sep_token, max_allowed_len):
+
+    all_combined = [cls_token + ' ' + c.question_text + ' ' + c.choice_text + ' ' + sep_token + ' ' + c.context
+                    for c in all_context]
+    all_tokenized_sentences = [tokenizer.encode(s) for s in all_combined]
+
+    pad_id = 0
+
+    all_len = [len(t) for t in all_tokenized_sentences]
+
+    max_len = max(all_len)
+    max_len = max_len if max_len < max_allowed_len else max_allowed_len
+
+    out_ids = []
+    for i, t in enumerate(all_tokenized_sentences):
+        current_len = all_len[i]
+        num_padding_tokens = max_len - current_len
+
+        if num_padding_tokens < 0:
+            new_id = t[0:max_len]
         else:
-            raise Exception('Not implemented yet')
+            new_id = t + [pad_id]*num_padding_tokens
+        assert len(new_id) == max_len
 
-        all_context = []
+        out_ids.append(new_id)
 
-        with open(filename, 'r') as file:
-            jsonl_reader = json_lines.reader(file)
-            for line in jsonl_reader:
-                all_context.extend(self.collect(line))
+    return out_ids
 
-        return all_context
+def get_device():
+    if torch.cuda.is_available():
+        return torch.device('cuda')
+    else:
+        return torch.device('cpu')
 
-    @staticmethod
-    def collect(info):
-        CONTEXT_DOCUMENT = namedtuple('CONTEXT_DOCUMENT', 'id question_text choice_text choice_label context correct')
 
-        current_context = []
+if __name__ == '__main__':
 
-        id = info['id']
-        question_text = info['question']['stem']
+    tokenizer_class_dict = {'BertTokenizer': BertTokenizer}
+    model_class_dict = {'BertModel': BertModel, 'BertForMultipleChoice': BertForMultipleChoice}
+    pretrained_weights = 'bert-base-uncased'
 
-        for c in info['question']['choices']:
-            choice_label = c['label']
-            choice_text = c['text']
-            context = c['para']
-            correct = choice_label == info['answerKey']
+    partitions = ['dev', 'train', 'test']
 
-            current_context.append(CONTEXT_DOCUMENT(id=id, question_text=question_text, choice_text=choice_text,
-                                                    choice_label=choice_label, context=context, correct=correct))
-        return current_context
+    device = get_device()
 
-    @staticmethod
-    def padding(all_context, tokenizer, cls_token, sep_token, max_allowed_len):
+    for tokenizer_str, tokenizer_class in tokenizer_class_dict.items():
+        tokenizer = tokenizer_class.from_pretrained(pretrained_weights)
+        for model_str, model_class in model_class_dict.items():
+            model = model_class.from_pretrained(pretrained_weights)
+            model.to(device)
+            for p in partitions:
+                tokens = load(p)
 
-        all_combined = [cls_token + ' ' + c.question_text + ' ' + c.choice_text + ' ' + sep_token + ' ' + c.context
-                        for c in all_context]
-        all_tokenized_sentences = [tokenizer.encode(s) for s in all_combined]
+                concatenated_QA_context = padding(tokens, tokenizer, tokenizer.cls_token, tokenizer.sep_token, 512)
 
-        pad_id = 0
+                input_ids = [tokenizer.encode(s, add_special_tokens=False) for s in concatenated_QA_context]
+                assert all([len(input_ids[0]) == len(ii) for ii in input_ids[1:]])
 
-        all_len = [len(t) for t in all_tokenized_sentences]
+                input_ids = torch.tensor(input_ids)
 
-        max_len = max(all_len)
-        max_len = max_len if max_len < max_allowed_len else max_allowed_len
+                torch.save(input_ids, os.path.join(head, 'hf_trasnformers/data/{}_tokens_{}.pt'.format(tokenizer_str, p)))
+                # torch.load('')
 
-        out_ids = []
-        for i, t in enumerate(all_tokenized_sentences):
-            current_len = all_len[i]
-            num_padding_tokens = max_len - current_len
+                batch_size = 250
+                num_iterations = (input_ids.size()[0] // batch_size) + 1
+                for i in range(num_iterations):
+                    with torch.no_grad():
+                        if i == num_iterations - 1:
+                            temp_ids = input_ids[batch_size * i:, :]
+                            temp_ids.to(device)
+                            all_hidden_states = model(temp_ids)
+                            pooled_hidden_state = all_hidden_states[1]
+                            last_hidden_states = all_hidden_states[0]
+                        else:
+                            temp_ids = input_ids[batch_size * i:batch_size * (i + 1), :]
+                            temp_ids.to(device)
+                            all_hidden_states = model(temp_ids)
+                            pooled_hidden_state = all_hidden_states[1]
+                            last_hidden_states = all_hidden_states[0]
 
-            if num_padding_tokens < 0:
-                new_id = t[0:max_len]
-            else:
-                new_id = t + [pad_id]*num_padding_tokens
-            assert len(new_id) == max_len
+                        temp_last_hidden_states_mean = torch.mean(last_hidden_states, dim=1)
 
-            out_ids.append(new_id)
+                        abs_array = torch.abs(last_hidden_states)
+                        max_indices = torch.argmax(abs_array, dim=1)
+                        temp_last_hidden_states_pool = torch.zeros(max_indices.size())
+                        for ii in range(temp_last_hidden_states_pool.size()[0]):
+                            for jj in range(temp_last_hidden_states_pool.size()[1]):
+                                temp_last_hidden_states_pool[ii, jj] = last_hidden_states[ii, max_indices[ii, jj], jj]
 
-        return out_ids
+                        if i is 0:
+                            out_pooled = pooled_hidden_state
+                            out_last_pool = temp_last_hidden_states_pool
+                            out_last_mean = temp_last_hidden_states_mean
+                        else:
+                            out_pooled = torch.cat((out_pooled, pooled_hidden_state), dim=0)
+                            out_last_pool = torch.cat((out_last_pool, temp_last_hidden_states_pool), dim=0)
+                            out_last_mean = torch.cat((out_last_mean, temp_last_hidden_states_mean), dim=0)
+
+                torch.save(out_pooled, os.path.join(head, 'hf_trasnformers/data/{}_features_cls_{}.pt'.format(model_str, p)))
+                torch.save(out_last_mean, os.path.join(head, 'hf_trasnformers/data/{}_features_mean_{}.pt'.format(model_str, p)))
+                torch.save(out_last_pool, os.path.join(head, 'hf_trasnformers/data/{}_features_pool_{}.pt'.format(model_str, p)))
+
+
+
+
+
 
