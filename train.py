@@ -134,6 +134,8 @@ if __name__ == '__main__':
 
     X = torch.cat((train_features, dev_features, test_features), dim=0).numpy()
 
+    logging.info('Number of features: {}'.format(X.shape[1]))
+
     correct_list, id_list = [], []
     for p in ['train', 'dev', 'test']:
         filename = os.path.join(head, 'ARC/ARC-with-context/{}.jsonl'.format(p))
@@ -150,6 +152,8 @@ if __name__ == '__main__':
 
     X_train, X_test, y_train, y_test, y_groupings = train_test_split_QA(X, y, id_list, test_size=0.2, random_state=args.seed)
 
+    logging.info('training size: {}, testing size: {}'.format(X_train.shape[0], X_test.shape[0]))
+
     if args.train_nn:
         logging.info('Start: CUDA available: {}'.format(torch.cuda.is_available()))
         assert torch.cuda.is_available()
@@ -158,8 +162,9 @@ if __name__ == '__main__':
         logging.info('Start: Using the cpu')
 
         num_cores = 2 if getpass.getuser() == 'Mitch' else multiprocessing.cpu_count()
+        logging.info('Using {} cores'.format(num_cores))
 
-        C_params = {'C': np.exp(np.arange(-4, 5, 2))}
+        C_params = {'C': np.exp(np.arange(-4, 5, 4))}
 
         svm_linear = SVC(kernel='linear', probability=True)
         svm_rbf = SVC(kernel='rbf', gamma='scale', probability=True)
@@ -174,7 +179,7 @@ if __name__ == '__main__':
         for i, (model_name, model) in enumerate(solvers.items()):
             logging.info('Evaluating {}'.format(model_name))
             if model_name == 'log_en':
-                C_params = {'C': np.exp(np.arange(-4, 5, 2)), 'l1_ratio': np.arange(.2, .8, .2)}
+                C_params = {'C': np.exp(np.arange(-4, 5, 4)), 'l1_ratio': np.arange(.3, .7, .2)}
 
             logging.info('All parameters: {}'.format(C_params))
             clf = GridSearchCV(model, C_params, cv=3, return_train_score=True, n_jobs=num_cores)
