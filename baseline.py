@@ -30,6 +30,7 @@ def BERT_embeddings(parameter_dict):
     for p in ['dev', 'test', 'train']:
         TD = TextDownload(dataset_name='ARC', partition=p, difficulty='')
         all_context.extend(TD.load())
+        all_context = all_context[:50]
         break
     logging.info('Finished gathering context.')
 
@@ -55,6 +56,10 @@ def BERT_embeddings(parameter_dict):
     input_ids = [tokenizer.encode(s, add_special_tokens=False) for s in concatenated_QA_context]
     assert all([len(input_ids[0]) == len(ii) for ii in input_ids[1:]]), [len(input_ids[0]) == len(ii) for ii in input_ids[1:]].index(False)
     input_ids = torch.tensor(input_ids)
+
+    # TODO cut it off here and this part create a new function, (still specific to BERT) so can do multiple passes
+    # TODO set up how to use gpus
+    # TODO would it be better to tokenize everything first and then save them and then build the models
 
     logging.info('Starting creating sentence embeddings.')
     batch_size = 250
