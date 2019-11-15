@@ -77,6 +77,11 @@ def evaluate(y_pred, y_test, y_groupings):
 
     # TODO output more info to logging, also not sure what info to save from here, the predictions maybe?
 
+def get_device():
+    if torch.cuda.is_available():
+        return torch.device('cuda:0')
+    else:
+        return torch.device('cpu')
 
 if __name__ == '__main__':
     import logging
@@ -108,21 +113,21 @@ if __name__ == '__main__':
     logging.info('Collecting features')
     dev_features_filename = os.path.join(head, 'hf_transformers/data/{}_features_{}_dev.pt'.format(args.model_name, args.features))
     if os.path.exists(dev_features_filename):
-        dev_features = torch.load(dev_features_filename)
+        dev_features = torch.load(dev_features_filename, map_location=get_device())
     else:
         logging.info('Dev features are random')
         dev_features = torch.rand(50, 100)
 
     train_features_filename = os.path.join(head, 'hf_transformers/data/{}_features_{}_train.pt'.format(args.model_name, args.features))
     if os.path.exists(train_features_filename):
-        train_features = torch.load(train_features_filename)
+        train_features = torch.load(train_features_filename, map_location=get_device())
     else:
         logging.info('Train features are random')
         train_features = torch.rand(100, 100)
 
     test_features_filename = os.path.join(head, 'hf_transformers/data/{}_features_{}_test.pt'.format(args.model_name, args.features))
     if os.path.exists(test_features_filename):
-        test_features = torch.load(test_features_filename)
+        test_features = torch.load(test_features_filename, map_location=get_device())
     else:
         logging.info('Test features are random')
         test_features = torch.rand(75, 100)
