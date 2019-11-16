@@ -90,97 +90,105 @@ if __name__ == '__main__':
     logging.info('CUDA available: {}'.format(torch.cuda.is_available()))
     assert torch.cuda.is_available()
 
-    tokenizer_class_dict = {'BertTokenizer': BertTokenizer, 'TransfoXLTokenizer': TransfoXLTokenizer,
-                            'RobertaTokenizer': RobertaTokenizer, 'XLNetTokenizer': XLNetTokenizer,
-                            'DistilBertTokenizer': DistilBertTokenizer}
-    model_class_dict = {'BertModel': BertModel, 'BertForMultipleChoice': BertForMultipleChoice,
-                        'TransfoXLModel': TransfoXLModel, 'XLNetModel': XLNetModel, 'RobertaModel': RobertaModel,
-                        'DistilBertModel': DistilBertModel}
-    pretrained_weights_dict = {'BertTokenizer': 'bert-base-uncased',
-                               'TransfoXLTokenizer': 'transfo-xl-wt103',
-                               'XLNetTokenizer': 'xlnet-base-cased',
-                               'RobertaTokenizer': 'roberta-base',
-                               'DistilBertModel': 'distilbert-base-uncased'}
+    CLASSES = {'BertModel': (BertTokenizer, BertModel, 'bert-base-uncased'),
+               'TransfoXLModel': (TransfoXLTokenizer, TransfoXLModel, 'transfo-xl-wt103'),
+               'RobertaModel': (RobertaTokenizer, RobertaModel, 'roberta-base'),
+               'XLNetModel': (XLNetTokenizer, XLNetModel, 'xlnet-base-cased'),
+               'DistilBertModel': (DistilBertTokenizer, DistilBertModel, 'distilbert-base-uncased')}
+
+    # tokenizer_class_dict = {'BertTokenizer': BertTokenizer, 'TransfoXLTokenizer': TransfoXLTokenizer,
+    #                         'RobertaTokenizer': RobertaTokenizer, 'XLNetTokenizer': XLNetTokenizer,
+    #                         'DistilBertTokenizer': DistilBertTokenizer}
+    # model_class_dict = {'BertModel': BertModel, 'BertForMultipleChoice': BertForMultipleChoice,
+    #                     'TransfoXLModel': TransfoXLModel, 'XLNetModel': XLNetModel, 'RobertaModel': RobertaModel,
+    #                     'DistilBertModel': DistilBertModel}
+    # pretrained_weights_dict = {'BertTokenizer': 'bert-base-uncased',
+    #                            'TransfoXLTokenizer': 'transfo-xl-wt103',
+    #                            'XLNetTokenizer': 'xlnet-base-cased',
+    #                            'RobertaTokenizer': 'roberta-base',
+    #                            'DistilBertModel': 'distilbert-base-uncased'}
 
     partitions = ['dev', 'train', 'test']
 
     device = get_device()
 
-    for tokenizer_str, tokenizer_class in tokenizer_class_dict.items():
-        pretrained_weights = pretrained_weights_dict[tokenizer_str]
+    for model_str, (tokenizer_class, model_class, pretrained_weights) in CLASSES.items():
+
+    # for tokenizer_str, tokenizer_class in tokenizer_class_dict.items():
+    #     pretrained_weights = pretrained_weights_dict[tokenizer_str]
         tokenizer = tokenizer_class.from_pretrained(pretrained_weights)
-        for model_str, model_class in model_class_dict.items():
-            model = model_class.from_pretrained(pretrained_weights)
-            model.to(device)
-            for p in partitions:
+        # for model_str, model_class in model_class_dict.items():
+        model = model_class.from_pretrained(pretrained_weights)
+        model.to(device)
+        for p in partitions:
 
-                if os.path.exists(os.path.join(head, 'hf_transformers/data/{}_features_cls_{}.pt'.format(model_str, p))) or \
-                        os.path.exists(os.path.join(head, 'hf_transformers/data/{}_features_mean_{}.pt'.format(model_str, p))) or \
-                        os.path.exists(os.path.join(head, 'hf_transformers/data/{}_features_pool_{}.pt'.format(model_str, p))):
-                    continue
+            if os.path.exists(os.path.join(head, 'hf_transformers/data/{}_features_cls_{}.pt'.format(model_str, p))) or \
+                    os.path.exists(os.path.join(head, 'hf_transformers/data/{}_features_mean_{}.pt'.format(model_str, p))) or \
+                    os.path.exists(os.path.join(head, 'hf_transformers/data/{}_features_pool_{}.pt'.format(model_str, p))):
+                continue
 
-                logging.info('Tokenizer: {}, model: {}, partition: {}'.format(tokenizer_str, model_str, p))
+            logging.info('Model: {}, partition: {}'.format(model_str, p))
 
-                logging.info('Loading tokens')
-                tokens = load(p)
-                logging.info('Finished loading tokens')
+            logging.info('Loading tokens')
+            tokens = load(p)
+            logging.info('Finished loading tokens')
 
-                logging.info('Padding')
-                concatenated_QA_context = padding(tokens, tokenizer, tokenizer.cls_token, tokenizer.sep_token, 512)
-                logging.info('Finished padding')
+            logging.info('Padding')
+            concatenated_QA_context = padding(tokens, tokenizer, tokenizer.cls_token, tokenizer.sep_token, 512)
+            logging.info('Finished padding')
 
-                logging.info('Encoding')
-                input_ids = [tokenizer.encode(s, add_special_tokens=False) for s in concatenated_QA_context]
-                logging.info('Finished encoding')
-                assert all([len(input_ids[0]) == len(ii) for ii in input_ids[1:]])
+            logging.info('Encoding')
+            input_ids = [tokenizer.encode(s, add_special_tokens=False) for s in concatenated_QA_context]
+            logging.info('Finished encoding')
+            assert all([len(input_ids[0]) == len(ii) for ii in input_ids[1:]])
 
-                input_ids = torch.tensor(input_ids)
+            input_ids = torch.tensor(input_ids)
 
-                torch.save(input_ids, os.path.join(head, 'hf_transformers/data/{}_tokens_{}.pt'.format(tokenizer_str, p)))
-                # torch.load('')
+            torch.save(input_ids, os.path.join(head, 'hf_transformers/data/{}_tokens_{}.pt'.format(model_str, p)))
+            # torch.load('')
 
-                logging.info('Starting embeddings')
-                batch_size = 250
-                num_iterations = (input_ids.size()[0] // batch_size) + 1
-                for i in range(num_iterations):
-                    with torch.no_grad():
-                        if i == num_iterations - 1:
-                            temp_ids = input_ids[batch_size * i:, :].to(device)
-                        else:
-                            temp_ids = input_ids[batch_size * i:batch_size * (i + 1), :].to(device)
+            logging.info('Starting embeddings')
+            batch_size = 250
+            num_iterations = (input_ids.size()[0] // batch_size) + 1
+            for i in range(num_iterations):
+                with torch.no_grad():
+                    if i == num_iterations - 1:
+                        temp_ids = input_ids[batch_size * i:, :].to(device)
+                    else:
+                        temp_ids = input_ids[batch_size * i:batch_size * (i + 1), :].to(device)
 
-                        all_hidden_states = model(temp_ids)
-                        last_hidden_states = all_hidden_states[0]
+                    all_hidden_states = model(temp_ids)
+                    last_hidden_states = all_hidden_states[0]
+                    if model_str in ['BertModel', 'RobertaModel']:
+                        pooled_hidden_state = all_hidden_states[1]
+
+                    temp_last_hidden_states_mean = torch.mean(last_hidden_states, dim=1)
+
+                    abs_array = torch.abs(last_hidden_states)
+                    max_indices = torch.argmax(abs_array, dim=1)
+                    temp_last_hidden_states_pool = torch.zeros(max_indices.size())
+                    for ii in range(temp_last_hidden_states_pool.size()[0]):
+                        for jj in range(temp_last_hidden_states_pool.size()[1]):
+                            temp_last_hidden_states_pool[ii, jj] = last_hidden_states[ii, max_indices[ii, jj], jj]
+
+                    if i is 0:
                         if model_str in ['BertModel', 'RobertaModel']:
-                            pooled_hidden_state = all_hidden_states[1]
+                            out_pooled = pooled_hidden_state
+                        out_last_pool = temp_last_hidden_states_pool
+                        out_last_mean = temp_last_hidden_states_mean
+                    else:
+                        if model_str in ['BertModel', 'RobertaModel']:
+                            out_pooled = torch.cat((out_pooled, pooled_hidden_state), dim=0)
+                        out_last_pool = torch.cat((out_last_pool, temp_last_hidden_states_pool), dim=0)
+                        out_last_mean = torch.cat((out_last_mean, temp_last_hidden_states_mean), dim=0)
+                logging.info('Finished iteration {} of {}'.format(i, num_iterations))
 
-                        temp_last_hidden_states_mean = torch.mean(last_hidden_states, dim=1)
+            logging.info('Finished embeddings')
 
-                        abs_array = torch.abs(last_hidden_states)
-                        max_indices = torch.argmax(abs_array, dim=1)
-                        temp_last_hidden_states_pool = torch.zeros(max_indices.size())
-                        for ii in range(temp_last_hidden_states_pool.size()[0]):
-                            for jj in range(temp_last_hidden_states_pool.size()[1]):
-                                temp_last_hidden_states_pool[ii, jj] = last_hidden_states[ii, max_indices[ii, jj], jj]
-
-                        if i is 0:
-                            if model_str in ['BertModel', 'RobertaModel']:
-                                out_pooled = pooled_hidden_state
-                            out_last_pool = temp_last_hidden_states_pool
-                            out_last_mean = temp_last_hidden_states_mean
-                        else:
-                            if model_str in ['BertModel', 'RobertaModel']:
-                                out_pooled = torch.cat((out_pooled, pooled_hidden_state), dim=0)
-                            out_last_pool = torch.cat((out_last_pool, temp_last_hidden_states_pool), dim=0)
-                            out_last_mean = torch.cat((out_last_mean, temp_last_hidden_states_mean), dim=0)
-                    logging.info('Finished iteration {} of {}'.format(i, num_iterations))
-
-                logging.info('Finished embeddings')
-
-                if model_str in ['BertModel', 'RobertaModel']:
-                    torch.save(out_pooled, os.path.join(head, 'hf_transformers/data/{}_features_cls_{}.pt'.format(model_str, p)))
-                torch.save(out_last_mean, os.path.join(head, 'hf_transformers/data/{}_features_mean_{}.pt'.format(model_str, p)))
-                torch.save(out_last_pool, os.path.join(head, 'hf_transformers/data/{}_features_pool_{}.pt'.format(model_str, p)))
+            if model_str in ['BertModel', 'RobertaModel']:
+                torch.save(out_pooled, os.path.join(head, 'hf_transformers/data/{}_features_cls_{}.pt'.format(model_str, p)))
+            torch.save(out_last_mean, os.path.join(head, 'hf_transformers/data/{}_features_mean_{}.pt'.format(model_str, p)))
+            torch.save(out_last_pool, os.path.join(head, 'hf_transformers/data/{}_features_pool_{}.pt'.format(model_str, p)))
 
 
 
