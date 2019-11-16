@@ -150,7 +150,7 @@ if __name__ == '__main__':
     else:
         assert y.shape[0] == X.shape[0]
 
-    X_train, X_test, y_train, y_test, y_groupings = train_test_split_QA(X, y, id_list, test_size=0.2, random_state=args.seed)
+    X_train, X_test, y_train, y_test, y_groupings = train_test_split_QA(X, y, id_list, test_size=0.5, random_state=args.seed)
 
     logging.info('training size: {}, testing size: {}'.format(X_train.shape[0], X_test.shape[0]))
 
