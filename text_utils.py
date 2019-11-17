@@ -43,6 +43,9 @@ def collect(info):
 
 def padding(all_context, tokenizer, cls_token, sep_token, max_allowed_len):
 
+    cls_token = '' if cls_token is None else cls_token
+    sep_token = '' if sep_token is None else sep_token
+
     all_combined = [cls_token + ' ' + c.question_text + ' ' + c.choice_text + ' ' + sep_token + ' ' + c.context
                     for c in all_context]
     all_tokenized_sentences = [tokenizer.encode(s) for s in all_combined]
@@ -88,13 +91,13 @@ if __name__ == '__main__':
                         datefmt='%m/%d/%Y %I:%M:%S %p')
 
     logging.info('CUDA available: {}'.format(torch.cuda.is_available()))
-    assert torch.cuda.is_available()
+    assert getpass.getuser() == 'Mitch' or torch.cuda.is_available()
 
-    CLASSES = {'BertModel': (BertTokenizer, BertModel, 'bert-base-uncased'),
-               'TransfoXLModel': (TransfoXLTokenizer, TransfoXLModel, 'transfo-xl-wt103'),
+    CLASSES = {'TransfoXLModel': (TransfoXLTokenizer, TransfoXLModel, 'transfo-xl-wt103'),
                'RobertaModel': (RobertaTokenizer, RobertaModel, 'roberta-base'),
                'XLNetModel': (XLNetTokenizer, XLNetModel, 'xlnet-base-cased'),
-               'DistilBertModel': (DistilBertTokenizer, DistilBertModel, 'distilbert-base-uncased')}
+               'DistilBertModel': (DistilBertTokenizer, DistilBertModel, 'distilbert-base-uncased'),
+               'BertModel': (BertTokenizer, BertModel, 'bert-base-uncased'),}
 
     # tokenizer_class_dict = {'BertTokenizer': BertTokenizer, 'TransfoXLTokenizer': TransfoXLTokenizer,
     #                         'RobertaTokenizer': RobertaTokenizer, 'XLNetTokenizer': XLNetTokenizer,
