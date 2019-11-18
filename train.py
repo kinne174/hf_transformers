@@ -150,7 +150,7 @@ if __name__ == '__main__':
     else:
         assert y.shape[0] == X.shape[0]
 
-    X_train, X_test, y_train, y_test, y_groupings = train_test_split_QA(X, y, id_list, test_size=0.5, random_state=args.seed)
+    X_train, X_test, y_train, y_test, y_groupings = train_test_split_QA(X, y, id_list, test_size=0.2, random_state=args.seed)
 
     logging.info('training size: {}, testing size: {}'.format(X_train.shape[0], X_test.shape[0]))
 
@@ -164,7 +164,7 @@ if __name__ == '__main__':
         num_cores = 2 if getpass.getuser() == 'Mitch' else multiprocessing.cpu_count()
         logging.info('Using {} cores'.format(num_cores))
 
-        C_params = {'C': np.exp(np.arange(-4, 5, 4))}
+        C_params = {'C': np.exp(np.arange(-8, 8, 2))}
 
         svm_linear = SVC(kernel='linear', probability=True)
         svm_rbf = SVC(kernel='rbf', gamma='scale', probability=True)
@@ -172,14 +172,13 @@ if __name__ == '__main__':
         logistic_l2 = LogisticRegression(max_iter=10000, penalty='l2')
         logistic_elastic = LogisticRegression(max_iter=1000, penalty='elasticnet', solver='saga')
 
-        solvers = {'svm_linear': svm_linear, 'svm_rbf': svm_rbf, 'log_l1': logistic_l1,
-                   'log_l2': logistic_l2, 'log_en': logistic_elastic}
+        solvers = {'log_l1': logistic_l1, 'log_l2': logistic_l2, 'log_en': logistic_elastic}
 
         logging.info('Starting to fit models')
         for i, (model_name, model) in enumerate(solvers.items()):
             logging.info('Evaluating {}'.format(model_name))
             if model_name == 'log_en':
-                C_params = {'C': np.exp(np.arange(-4, 5, 4)), 'l1_ratio': np.arange(.3, .7, .2)}
+                C_params = {'C': np.exp(np.arange(-8, 8, 2)), 'l1_ratio': np.arange(.1, .9, .2)}
 
             logging.info('All parameters: {}'.format(C_params))
             clf = GridSearchCV(model, C_params, cv=3, return_train_score=True, n_jobs=num_cores)
