@@ -48,10 +48,13 @@ def train_test_split_QA(X, y, id_list, test_size, random_state):
 
     assert len(test_out_mask) == len(train_out_mask) == sum(test_out_mask) + sum(train_out_mask) == X.shape[0] == y.shape[0]
 
-    y_groupings = [ii for i, b in enumerate(test_mask) for ii in [i]*len(grouped_ids[i]) if b]
-    assert len(y_groupings) == sum(test_out_mask)
+    y_groupings_te = [ii for i, b in enumerate(test_mask) for ii in [i]*len(grouped_ids[i]) if b]
+    assert len(y_groupings_te) == sum(test_out_mask)
 
-    return X[train_out_mask, :], X[test_out_mask, :], y[train_out_mask], y[test_out_mask], y_groupings
+    y_groupings_tr = [ii for i, b in enumerate(test_mask) for ii in [i]*len(grouped_ids[i]) if not b]
+    assert len(y_groupings_tr) == sum(train_out_mask)
+
+    return X[train_out_mask, :], X[test_out_mask, :], y[train_out_mask], y[test_out_mask], y_groupings_te, y_groupings_tr
 
 def evaluate(y_pred, y_test, y_groupings):
     unique_grouping = list(np.unique(y_groupings))
@@ -150,7 +153,8 @@ if __name__ == '__main__':
     else:
         assert y.shape[0] == X.shape[0]
 
-    X_train, X_test, y_train, y_test, y_groupings = train_test_split_QA(X, y, id_list, test_size=0.2, random_state=args.seed)
+    X_train, X_test, y_train, y_test, y_groupings_te, y_groupings_tr = train_test_split_QA(X, y, id_list, test_size=0.2,
+                                                                                           random_state=args.seed)
 
     logging.info('training size: {}, testing size: {}'.format(X_train.shape[0], X_test.shape[0]))
 
@@ -181,7 +185,7 @@ if __name__ == '__main__':
                 C_params = {'C': np.exp(np.arange(-8, 9, 2)), 'l1_ratio': np.arange(.1, 1, .2)}
 
             logging.info('All parameters: {}'.format(C_params))
-            clf = GridSearchCV(model, C_params, cv=3, return_train_score=True, n_jobs=num_cores)
+            clf = GridSearchCV(model, C_params, cv=3, n_jobs=num_cores)
             clf.fit(X_train, y_train)
 
             logging.info('Best parameters: {}'.format(clf.best_params_))
@@ -191,8 +195,19 @@ if __name__ == '__main__':
 
             assert y_pred.shape[0] == y_test.shape[0]
 
-            percentage_correct = evaluate(y_pred, y_test, y_groupings)
-            logging.info('{}: {}'.format(model_name, percentage_correct))
+            percentage_correct_te = evaluate(y_pred, y_test, y_groupings_te)
+            logging.info('Testing accuracy for {}: {}'.format(model_name, percentage_correct_te))
+
+            y_pred = clf.predict_proba(X_train)
+            y_pred = y_pred[:, 1].reshape((-1,))
+
+            assert y_pred.shape[0] == y_train.shape[0]
+
+            percentage_correct_tr = evaluate(y_pred, y_train, y_groupings_tr)
+            logging.info('Training accuracy for {}: {}'.format(model_name, percentage_correct_tr))
+
+
+
 
 
 
