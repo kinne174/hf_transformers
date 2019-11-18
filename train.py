@@ -164,7 +164,7 @@ if __name__ == '__main__':
         num_cores = 2 if getpass.getuser() == 'Mitch' else multiprocessing.cpu_count()
         logging.info('Using {} cores'.format(num_cores))
 
-        C_params = {'C': np.exp(np.arange(-8, 8, 2))}
+        C_params = {'C': np.exp(np.arange(-8, 9, 2))}
 
         svm_linear = SVC(kernel='linear', probability=True)
         svm_rbf = SVC(kernel='rbf', gamma='scale', probability=True)
@@ -178,7 +178,7 @@ if __name__ == '__main__':
         for i, (model_name, model) in enumerate(solvers.items()):
             logging.info('Evaluating {}'.format(model_name))
             if model_name == 'log_en':
-                C_params = {'C': np.exp(np.arange(-8, 8, 2)), 'l1_ratio': np.arange(.1, .9, .2)}
+                C_params = {'C': np.exp(np.arange(-8, 9, 2)), 'l1_ratio': np.arange(.1, 1, .2)}
 
             logging.info('All parameters: {}'.format(C_params))
             clf = GridSearchCV(model, C_params, cv=3, return_train_score=True, n_jobs=num_cores)
