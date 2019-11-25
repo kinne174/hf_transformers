@@ -97,7 +97,9 @@ if __name__ == '__main__':
                'RobertaModel': (RobertaTokenizer, RobertaModel, 'roberta-base'),
                'XLNetModel': (XLNetTokenizer, XLNetModel, 'xlnet-base-cased'),
                'DistilBertModel': (DistilBertTokenizer, DistilBertModel, 'distilbert-base-uncased'),
-               'BertModel': (BertTokenizer, BertModel, 'bert-base-uncased'),}
+               'BertModel': (BertTokenizer, BertModel, 'bert-base-uncased'),
+               'BertModelSquad': (BertTokenizer, BertModel, 'bert-large-uncased-whole-word-masking-finetuned-squad'),
+               'DistilBertModelSquad': (DistilBertTokenizer, DistilBertModel, 'distilbert-base-uncased-distilled-squad')}
 
     # tokenizer_class_dict = {'BertTokenizer': BertTokenizer, 'TransfoXLTokenizer': TransfoXLTokenizer,
     #                         'RobertaTokenizer': RobertaTokenizer, 'XLNetTokenizer': XLNetTokenizer,
