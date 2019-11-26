@@ -2,8 +2,9 @@ import numpy as np
 import json_lines
 import os
 from sklearn.svm import SVC
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, PredefinedSplit
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import make_scorer
 import torch
 import multiprocessing
 
@@ -28,33 +29,15 @@ def labels(json_filename):
 
     return correct_list, id_list
 
-def train_test_split_QA(X, y, id_list, test_size, random_state):
-    np.random.seed(random_state)
+def QA_groupings(id_list):
 
     unique_ids = list(np.unique([id[:id.index('*-*')] for id in id_list]))
-    grouped_ids = [[]]*len(unique_ids)
+    grouped_ids = []
     for id in id_list:
         ui_index = unique_ids.index(id[:id.index('*-*')])
-        grouped_ids[ui_index] = grouped_ids[ui_index] + [id]
+        grouped_ids.append(ui_index)
 
-    test_indices = np.random.choice(len(unique_ids), replace=False, size=np.int(test_size*len(unique_ids)))
-
-    test_mask = [False]*len(unique_ids)
-    for i in test_indices:
-        test_mask[i] = True
-
-    test_out_mask = [bb for i, b in enumerate(test_mask) for bb in [b]*len(grouped_ids[i])]
-    train_out_mask = [bb for i, b in enumerate(test_mask) for bb in [not b]*len(grouped_ids[i])]
-
-    assert len(test_out_mask) == len(train_out_mask) == sum(test_out_mask) + sum(train_out_mask) == X.shape[0] == y.shape[0]
-
-    y_groupings_te = [ii for i, b in enumerate(test_mask) for ii in [i]*len(grouped_ids[i]) if b]
-    assert len(y_groupings_te) == sum(test_out_mask)
-
-    y_groupings_tr = [ii for i, b in enumerate(test_mask) for ii in [i]*len(grouped_ids[i]) if not b]
-    assert len(y_groupings_tr) == sum(train_out_mask)
-
-    return X[train_out_mask, :], X[test_out_mask, :], y[train_out_mask], y[test_out_mask], y_groupings_te, y_groupings_tr
+    return grouped_ids
 
 def evaluate(y_pred, y_test, y_groupings):
     unique_grouping = list(np.unique(y_groupings))
@@ -85,6 +68,7 @@ def get_device():
         return torch.device('cuda:0')
     else:
         return torch.device('cpu')
+
 
 if __name__ == '__main__':
     import logging
@@ -135,28 +119,33 @@ if __name__ == '__main__':
         logging.info('Test features are random')
         test_features = torch.rand(75, 100)
 
-    X = torch.cat((train_features, dev_features, test_features), dim=0).numpy()
+    # X = torch.cat((train_features, dev_features, test_features), dim=0).numpy()
 
-    logging.info('Number of features: {}'.format(X.shape[1]))
+    logging.info('Number of features: {}'.format(train_features.shape[1]))
 
-    correct_list, id_list = [], []
+    correct_dict, id_dict = {}, {}
     for p in ['train', 'dev', 'test']:
         filename = os.path.join(head, 'ARC/ARC-with-context/{}.jsonl'.format(p))
         temp_correct_list, temp_id_list = labels(filename)
-        correct_list.extend(temp_correct_list)
-        id_list.extend(temp_id_list)
+        correct_dict[p] = np.array(temp_correct_list, dtype=np.int)
+        id_dict[p] = temp_id_list
 
-    y = np.array(correct_list, dtype=np.int)
+    # y = np.array(correct_list, dtype=np.int)
     if getpass.getuser() == 'Mitch':
-        y = y[:X.shape[0]]
-        id_list = id_list[:X.shape[0]]
+        for p, f in zip(['train', 'dev', 'test'], [train_features, dev_features, test_features]):
+            correct_dict[p] = correct_dict[p][:f.shape[0]]
+            id_dict[p] = id_dict[p][:f.shape[0]]
+        # y = y[:X.shape[0]]
+        # id_list = id_list[:X.shape[0]]
     else:
-        assert y.shape[0] == X.shape[0]
+        for p, f in zip(['train', 'dev', 'test'], [train_features, dev_features, test_features]):
+            assert correct_dict[p].shape[0] == f.shape[0]
+            logging.info('Number of {} observations: {}'.format(p, f.shape[0]))
 
-    X_train, X_test, y_train, y_test, y_groupings_te, y_groupings_tr = train_test_split_QA(X, y, id_list, test_size=0.2,
-                                                                                           random_state=args.seed)
+    # X_train, X_test, y_train, y_test, y_groupings_te, y_groupings_tr = train_test_split_QA(X, y, id_list, test_size=0.2,
+    #                                                                                        random_state=args.seed)
 
-    logging.info('training size: {}, testing size: {}'.format(X_train.shape[0], X_test.shape[0]))
+    # logging.info('training size: {}, testing size: {}'.format(X_train.shape[0], X_test.shape[0]))
 
     if args.train_nn:
         logging.info('Start: CUDA available: {}'.format(torch.cuda.is_available()))
@@ -185,17 +174,31 @@ if __name__ == '__main__':
                 C_params = {'C': np.exp(np.arange(-8, 9, 2)), 'l1_ratio': np.arange(.1, 1, .2)}
 
             logging.info('All parameters: {}'.format(C_params))
-            clf = GridSearchCV(model, C_params, cv=3, n_jobs=num_cores)
+            X_train = np.concatenate((train_features, dev_features), axis=0)
+            y_train = np.concatenate((correct_dict['train'], correct_dict['dev']))
+            test_fold = [-1]*train_features.shape[0] + [0]*dev_features.shape[0]
+            ps = PredefinedSplit(test_fold=test_fold)
+
+            groupings_dev = QA_groupings(id_dict['dev'])
+
+            my_scorer = make_scorer(evaluate, y_groupings=groupings_dev)
+            clf = GridSearchCV(model, C_params, scoring=my_scorer, cv=ps, n_jobs=num_cores)
             clf.fit(X_train, y_train)
 
             logging.info('Best parameters: {}'.format(clf.best_params_))
+            logging.info('Dev Scores: {}'.format(clf.best_score_))
+
+            X_test = test_features
+            y_test = correct_dict['test']
+
+            grouping_test = QA_groupings(id_dict['test'])
 
             y_pred = clf.predict_proba(X_test)
             y_pred = y_pred[:, 1].reshape((-1,))
 
             assert y_pred.shape[0] == y_test.shape[0]
 
-            percentage_correct_te = evaluate(y_pred, y_test, y_groupings_te)
+            percentage_correct_te = evaluate(y_pred, y_test, grouping_test)
             logging.info('Testing accuracy for {}: {}'.format(model_name, percentage_correct_te))
 
             y_pred = clf.predict_proba(X_train)
@@ -203,7 +206,9 @@ if __name__ == '__main__':
 
             assert y_pred.shape[0] == y_train.shape[0]
 
-            percentage_correct_tr = evaluate(y_pred, y_train, y_groupings_tr)
+            grouping_train = QA_groupings(id_dict['train'] + id_dict['dev'])
+
+            percentage_correct_tr = evaluate(y_pred, y_train, grouping_train)
             logging.info('Training accuracy for {}: {}'.format(model_name, percentage_correct_tr))
 
 
