@@ -91,10 +91,11 @@ if __name__ == '__main__':
                         datefmt='%m/%d/%Y %I:%M:%S %p')
 
     logging.info('CUDA available: {}'.format(torch.cuda.is_available()))
-    assert getpass.getuser() == 'Mitch' or torch.cuda.is_available()
+    # assert getpass.getuser() == 'Mitch' or torch.cuda.is_available()
 
     CLASSES = {'TransfoXLModel': (TransfoXLTokenizer, TransfoXLModel, 'transfo-xl-wt103'),
                'RobertaModel': (RobertaTokenizer, RobertaModel, 'roberta-base'),
+               'RobertaLargeMNLI': (RobertaTokenizer, RobertaModel, 'roberta-large-mnli'),
                'XLNetModel': (XLNetTokenizer, XLNetModel, 'xlnet-base-cased'),
                'DistilBertModel': (DistilBertTokenizer, DistilBertModel, 'distilbert-base-uncased'),
                'BertModel': (BertTokenizer, BertModel, 'bert-base-uncased'),
@@ -159,6 +160,7 @@ if __name__ == '__main__':
                 num_iterations = (input_ids.size()[0] // batch_size) + 1
                 for i in range(num_iterations):
                     with torch.no_grad():
+                        model.eval()
                         if i == num_iterations - 1:
                             temp_ids = input_ids[batch_size * i:, :].to(device)
                         else:
