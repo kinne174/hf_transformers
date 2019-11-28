@@ -3,8 +3,10 @@ from collections import namedtuple
 import os
 import getpass
 import torch
+import tqdm
 from transformers import (BertTokenizer, BertModel, BertForMultipleChoice, TransfoXLTokenizer, TransfoXLModel, XLNetModel,
                           XLNetTokenizer, RobertaTokenizer, RobertaModel, DistilBertModel, DistilBertTokenizer)
+
 
 if getpass.getuser() == 'Mitch':
     head = 'C:/Users/Mitch/PycharmProjects'
@@ -130,10 +132,10 @@ if __name__ == '__main__':
 
             try:
 
-                if os.path.exists(os.path.join(head, 'hf_transformers/data/{}_features_cls_{}.pt'.format(model_str, p))) or \
-                        os.path.exists(os.path.join(head, 'hf_transformers/data/{}_features_mean_{}.pt'.format(model_str, p))) or \
-                        os.path.exists(os.path.join(head, 'hf_transformers/data/{}_features_pool_{}.pt'.format(model_str, p))):
-                    continue
+                # if os.path.exists(os.path.join(head, 'hf_transformers/data/{}_features_cls_{}.pt'.format(model_str, p))) or \
+                #         os.path.exists(os.path.join(head, 'hf_transformers/data/{}_features_mean_{}.pt'.format(model_str, p))) or \
+                #         os.path.exists(os.path.join(head, 'hf_transformers/data/{}_features_pool_{}.pt'.format(model_str, p))):
+                #     continue
 
                 logging.info('Model: {}, partition: {}'.format(model_str, p))
 
@@ -158,7 +160,8 @@ if __name__ == '__main__':
                 logging.info('Starting embeddings')
                 batch_size = 250
                 num_iterations = (input_ids.size()[0] // batch_size) + 1
-                for i in range(num_iterations):
+                batch_iterator = tqdm.trange(num_iterations, desc='Batch Number')
+                for i in batch_iterator:
                     with torch.no_grad():
                         model.eval()
                         if i == num_iterations - 1:
@@ -166,7 +169,13 @@ if __name__ == '__main__':
                         else:
                             temp_ids = input_ids[batch_size * i:batch_size * (i + 1), :].to(device)
 
+                        logging.info('Memory allocated on gpu before loading is {} GB'.format(torch.cuda.memory_allocated(device) *1e-9))
+                        logging.info('Memory cached on gpu before lading is {} GB'.format(torch.cuda.memory_cached(device) *1e-9))
                         all_hidden_states = model(temp_ids)
+                        logging.info('Memory allocated on gpu after loading is {} GB'.format(
+                            torch.cuda.memory_allocated(device) * 1e-9))
+                        logging.info('Memory cached on gpu after lading is {} GB'.format(
+                            torch.cuda.memory_cached(device) * 1e-9))
                         last_hidden_states = all_hidden_states[0]
                         if model_str in ['BertModel', 'RobertaModel']:
                             pooled_hidden_state = all_hidden_states[1]
