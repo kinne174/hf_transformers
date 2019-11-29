@@ -6,6 +6,7 @@ import torch
 import tqdm
 from transformers import (BertTokenizer, BertModel, BertForMultipleChoice, TransfoXLTokenizer, TransfoXLModel, XLNetModel,
                           XLNetTokenizer, RobertaTokenizer, RobertaModel, DistilBertModel, DistilBertTokenizer)
+from torchsummary import summary
 
 
 if getpass.getuser() == 'Mitch':
@@ -95,7 +96,7 @@ if __name__ == '__main__':
     logging.info('CUDA available: {}'.format(torch.cuda.is_available()))
     # assert getpass.getuser() == 'Mitch' or torch.cuda.is_available()
 
-    CLASSES = {'TransfoXLModel': (TransfoXLTokenizer, TransfoXLModel, 'transfo-xl-wt103'),
+    CLASSES = {#'TransfoXLModel': (TransfoXLTokenizer, TransfoXLModel, 'transfo-xl-wt103'),
                'RobertaModel': (RobertaTokenizer, RobertaModel, 'roberta-base'),
                'RobertaLargeMNLI': (RobertaTokenizer, RobertaModel, 'roberta-large-mnli'),
                'XLNetModel': (XLNetTokenizer, XLNetModel, 'xlnet-base-cased'),
@@ -128,6 +129,7 @@ if __name__ == '__main__':
         # for model_str, model_class in model_class_dict.items():
         model = model_class.from_pretrained(pretrained_weights)
         model.to(device)
+
         for p in partitions:
 
             try:
@@ -154,11 +156,15 @@ if __name__ == '__main__':
 
                 input_ids = torch.tensor(input_ids)
 
+                batch_size = 250
+                input_size = (batch_size, *input_ids.size()[1:])
+
+                logging.info(summary(model, input_size))
+
                 torch.save(input_ids, os.path.join(head, 'hf_transformers/data/{}_tokens_{}.pt'.format(model_str, p)))
                 # torch.load('')
 
                 logging.info('Starting embeddings')
-                batch_size = 250
                 num_iterations = (input_ids.size()[0] // batch_size) + 1
                 batch_iterator = tqdm.trange(num_iterations, desc='Batch Number')
                 for i in batch_iterator:
